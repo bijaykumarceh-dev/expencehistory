@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:expencehistory/main.dart';
 import 'package:expencehistory/tracker_models.dart';
+import 'package:expencehistory/weekly_report.dart';
 
 void main() {
   setUp(() {
@@ -47,6 +48,39 @@ void main() {
     expect(weekStatus(10), 'Profit');
     expect(weekStatus(-10), 'Loss');
     expect(weekStatus(0), 'Break-even');
+  });
+
+  test('weekly PDF report is generated for the selected week', () async {
+    final bytes = await buildWeeklyReportPdf(
+      weekStart: DateTime(2026, 11, 9),
+      transactions: [
+        MoneyTransaction(
+          id: 'pdf-income',
+          amount: 1200,
+          isIncome: true,
+          category: 'Salary',
+          walletId: 'cash',
+          date: DateTime(2026, 11, 10),
+          note: 'Pay',
+        ),
+        MoneyTransaction(
+          id: 'pdf-expense',
+          amount: 75.5,
+          isIncome: false,
+          category: 'Food',
+          walletId: 'cash',
+          date: DateTime(2026, 11, 11),
+          note: 'Lunch',
+        ),
+      ],
+      wallets: const [
+        Wallet(id: 'cash', name: 'Cash', type: 'Cash', openingBalance: 0),
+      ],
+      openingBalance: 500,
+      closingBalance: 1624.5,
+    );
+
+    expect(String.fromCharCodes(bytes.take(5)), '%PDF-');
   });
 
   test('transactions persist locally and update the wallet balance', () async {

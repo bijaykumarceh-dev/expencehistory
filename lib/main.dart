@@ -4,9 +4,11 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:printing/printing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'tracker_models.dart';
+import 'weekly_report.dart';
 
 const _ink = Color(0xFF15251F);
 const _green = Color(0xFF16845B);
@@ -924,6 +926,20 @@ class WeekDetailSheet extends StatelessWidget {
                 style: const TextStyle(
                   fontSize: 21,
                   fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerRight,
+                child: OutlinedButton.icon(
+                  onPressed: () => _shareWeeklyReport(
+                    context,
+                    store: store,
+                    weekStart: start,
+                    transactions: items,
+                  ),
+                  icon: const Icon(Icons.picture_as_pdf_outlined),
+                  label: const Text('Export PDF'),
                 ),
               ),
               const SizedBox(height: 16),
@@ -2077,6 +2093,53 @@ double _balanceAt(TrackerStore store, DateTime through) {
       .where((item) => !item.date.isAfter(through))
       .toList();
   return calculateBalance(store.wallets, items);
+}
+
+Future<void> _shareWeeklyReport(
+  BuildContext context, {
+  required TrackerStore store,
+  required DateTime weekStart,
+  required List<MoneyTransaction> transactions,
+}) async {
+  final messenger = ScaffoldMessenger.of(context);
+  try {
+    final weekEnd = weekStart.add(const Duration(days: 7));
+    final bytes = await buildWeeklyReportPdf(
+      weekStart: weekStart,
+      transactions: transactions,
+      wallets: store.wallets,
+      openingBalance: _balanceAt(
+        store,
+        weekStart.subtract(const Duration(microseconds: 1)),
+      ),
+      closingBalance: _balanceAt(
+        store,
+        weekEnd.subtract(const Duration(microseconds: 1)),
+      ),
+    );
+    final filename =
+        'KhataFlow-week-${weekStart.year}-'
+        '${weekStart.month.toString().padLeft(2, '0')}-'
+        '${weekStart.day.toString().padLeft(2, '0')}.pdf';
+    final shared = await Printing.sharePdf(
+      bytes: bytes,
+      filename: filename,
+      subject: 'KhataFlow weekly report',
+      body: 'Weekly report for ${_formatDate(weekStart)}.',
+    );
+    if (!shared && context.mounted) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Could not open PDF sharing options.')),
+      );
+    }
+  } catch (error, stackTrace) {
+    debugPrint('Weekly PDF export failed: $error\n$stackTrace');
+    if (context.mounted) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Could not create or share the PDF.')),
+      );
+    }
+  }
 }
 
 double _walletBalance(TrackerStore store, Wallet wallet) =>
