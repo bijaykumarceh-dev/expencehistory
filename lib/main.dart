@@ -237,12 +237,6 @@ class _TrackerHomeState extends State<TrackerHome> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    if (_locked) {
-      return PinLockScreen(
-        store: widget.store,
-        onUnlocked: () => setState(() => _locked = false),
-      );
-    }
     final pages = [
       DashboardScreen(
         store: widget.store,
@@ -258,9 +252,21 @@ class _TrackerHomeState extends State<TrackerHome> with WidgetsBindingObserver {
     ];
     return Scaffold(
       body: SafeArea(
-        child: IndexedStack(index: _tab, children: pages),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            IndexedStack(index: _tab, children: pages),
+            if (_locked)
+              Positioned.fill(
+                child: PinLockScreen(
+                  store: widget.store,
+                  onUnlocked: () => setState(() => _locked = false),
+                ),
+              ),
+          ],
+        ),
       ),
-      floatingActionButton: _tab < 2
+      floatingActionButton: !_locked && _tab < 2
           ? FloatingActionButton(
               onPressed: _openTransaction,
               backgroundColor: _green,
@@ -1022,7 +1028,7 @@ class SettingsScreen extends StatelessWidget {
               ? 'App lock is enabled on this device'
               : 'Protect the app when it is opened',
           icon: Icons.lock_outline,
-          onTap: () => _setPin(context, store, onLock),
+          onTap: () => _setPin(context, store),
         ),
         if (store.hasPin)
           _SettingsCard(
@@ -1567,6 +1573,7 @@ class _PinLockScreenState extends State<PinLockScreen> {
 
   void _unlock() {
     if (widget.store.verifyPin(_pin.text)) {
+      FocusManager.instance.primaryFocus?.unfocus();
       widget.onUnlocked();
     } else {
       setState(() {
@@ -1577,72 +1584,22 @@ class _PinLockScreenState extends State<PinLockScreen> {
   }
 }
 
-Future<void> _setPin(
-  BuildContext context,
-  TrackerStore store,
-  VoidCallback onLock,
-) async {
-  final controller = TextEditingController();
-  final pin = await showDialog<String>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Text(store.hasPin ? 'Change app PIN' : 'Set app PIN'),
-      content: TextField(
-        controller: controller,
-        autofocus: true,
-        obscureText: true,
-        keyboardType: TextInputType.number,
-        maxLength: 6,
-        decoration: const InputDecoration(labelText: 'Choose a 4–6 digit PIN'),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: () {
-            final value = controller.text.trim();
-            if (RegExp(r'^\d{4,6}$').hasMatch(value)) {
-              Navigator.pop(context, value);
-            }
-          },
-          child: const Text('Continue'),
-        ),
-      ],
-    ),
+Future<void> _setPin(BuildContext context, TrackerStore store) async {
+  final pin = await _showPinEntryDialog(
+    context,
+    title: store.hasPin ? 'Change app PIN' : 'Set app PIN',
+    label: 'Choose a 4–6 digit PIN',
+    action: 'Continue',
   );
-  controller.dispose();
   if (pin == null || !context.mounted) return;
-  final confirmController = TextEditingController();
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Confirm PIN'),
-      content: TextField(
-        controller: confirmController,
-        autofocus: true,
-        obscureText: true,
-        keyboardType: TextInputType.number,
-        maxLength: 6,
-        decoration: const InputDecoration(labelText: 'Enter the PIN again'),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: const Text('Cancel'),
-        ),
-        FilledButton(
-          onPressed: () =>
-              Navigator.pop(context, confirmController.text == pin),
-          child: const Text('Save PIN'),
-        ),
-      ],
-    ),
+  final confirmed = await _showPinEntryDialog(
+    context,
+    title: 'Confirm PIN',
+    label: 'Enter the PIN again',
+    action: 'Save PIN',
   );
-  confirmController.dispose();
   if (!context.mounted) return;
-  if (confirmed != true) {
+  if (confirmed != pin) {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('PINs did not match. No changes were made.'),
@@ -1652,12 +1609,85 @@ Future<void> _setPin(
   }
   try {
     await store.setPin(pin);
-    onLock();
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'PIN saved. App lock will appear next time you open the app.',
+          ),
+        ),
+      );
+    }
   } catch (error) {
     if (context.mounted) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Could not save the PIN: $error')));
+    }
+  }
+}
+
+Future<String?> _showPinEntryDialog(
+  BuildContext context, {
+  required String title,
+  required String label,
+  required String action,
+}) => showDialog<String>(
+  context: context,
+  builder: (context) =>
+      _PinEntryDialog(title: title, label: label, action: action),
+);
+
+class _PinEntryDialog extends StatefulWidget {
+  const _PinEntryDialog({
+    required this.title,
+    required this.label,
+    required this.action,
+  });
+
+  final String title;
+  final String label;
+  final String action;
+
+  @override
+  State<_PinEntryDialog> createState() => _PinEntryDialogState();
+}
+
+class _PinEntryDialogState extends State<_PinEntryDialog> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(widget.title),
+    content: TextField(
+      controller: _controller,
+      autofocus: true,
+      obscureText: true,
+      keyboardType: TextInputType.number,
+      maxLength: 6,
+      decoration: InputDecoration(labelText: widget.label),
+      onSubmitted: (_) => _submit(),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(onPressed: _submit, child: Text(widget.action)),
+    ],
+  );
+
+  void _submit() {
+    final value = _controller.text.trim();
+    if (RegExp(r'^\d{4,6}$').hasMatch(value)) {
+      FocusManager.instance.primaryFocus?.unfocus();
+      Navigator.pop(context, value);
     }
   }
 }

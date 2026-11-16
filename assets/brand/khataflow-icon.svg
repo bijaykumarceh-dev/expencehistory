@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#104D39"/>
+      <stop offset="1" stop-color="#1C9B69"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#EDF7F0"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="230" fill="url(#bg)"/>
+  <circle cx="850" cy="170" r="220" fill="#FFFFFF" opacity=".055"/>
+  <circle cx="150" cy="900" r="260" fill="#082F23" opacity=".12"/>
+  <rect x="176" y="146" width="672" height="732" rx="168" fill="#082F23" opacity=".2" transform="translate(0 20)"/>
+  <rect x="176" y="136" width="672" height="732" rx="168" fill="url(#card)"/>
+  <circle cx="512" cy="356" r="135" fill="#D9F0E2"/>
+  <circle cx="512" cy="356" r="111" fill="#16845B"/>
+  <text x="512" y="402" text-anchor="middle" font-family="Arial, sans-serif" font-size="136" font-weight="700" fill="#FFFFFF">₹</text>
+  <path d="M296 570h432" fill="none" stroke="#DCE9DF" stroke-width="18" stroke-linecap="round"/>
+  <path d="M330 772V700a30 30 0 0 1 30-30h42a30 30 0 0 1 30 30v72M461 772V647a30 30 0 0 1 30-30h42a30 30 0 0 1 30 30v125M592 772V588a30 30 0 0 1 30-30h42a30 30 0 0 1 30 30v184" fill="#16845B"/>
+  <path d="m368 641 143-82 124-64 70-56" fill="none" stroke="#72C79A" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="m673 438 38-5-7 39" fill="none" stroke="#72C79A" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

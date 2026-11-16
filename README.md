@@ -1,35 +1,109 @@
 # KhataFlow
 
-A Flutter expense and balance tracker with offline-first storage.
+<p align="center">
+  <img src="assets/brand/khataflow-icon.png" alt="KhataFlow app icon" width="120">
+</p>
 
-## Run locally
+<p align="center">
+  <strong>A simple, offline-first way to keep track of your money.</strong><br>
+  Record income and expenses, see your wallet balance, and understand how each week went.
+</p>
+
+<p align="center">
+  <a href="https://github.com/bijaykumarceh-dev/expencehistory/releases">
+    <img alt="Latest Android APK" src="https://img.shields.io/badge/Android-Download%20APK-16845B?logo=android&logoColor=white">
+  </a>
+  <img alt="Flutter" src="https://img.shields.io/badge/Built%20with-Flutter-02569B?logo=flutter&logoColor=white">
+</p>
+
+## Download for Android
+
+**[Download KhataFlow for Android (arm64)](https://github.com/bijaykumarceh-dev/expencehistory/raw/refs/heads/main/releases/KhataFlow-1.0.0-android-arm64.apk?download=1)**
+
+This APK is built for most modern Android phones (64-bit ARM). Download it to
+your phone, open the APK, and allow installation from this source if Android
+asks. This is a direct-install build, not a Play Store release.
+
+## What it does
+
+- **Balance dashboard** — total balance across wallets, calculated from opening
+  balances, income, and expenses.
+- **Wallets** — keep separate Cash, Bank, UPI, or custom accounts with opening
+  balances.
+- **Transactions** — add, edit, and delete income and expenses with category,
+  wallet, date, time, and an optional note.
+- **Weekly view** — Monday–Sunday income, expenses, net result, profit/loss
+  status, category breakdown, and closing balance.
+- **Receipts** — take a photo or choose one from the gallery and attach it to an
+  entry. Images over 1 MB are rejected.
+- **UPI QR scanning** — scan a payment QR to prefill supported amount and payee
+  details; review everything before saving.
+- **Optional app PIN** — protect the app when it is opened or returns from the
+  background.
+- **Offline-first storage** — your entries are kept on the device and remain
+  available without an internet connection.
+
+## Screens
+
+| Dashboard | Transactions | Weekly history |
+|---|---|---|
+| Balance and weekly spending | Filter and manage entries | Profit/loss and closing balance |
+
+## Install from a computer
+
+With Android Platform Tools installed and USB debugging enabled:
+
+```sh
+adb install -r releases/KhataFlow-1.0.0-android-arm64.apk
+```
+
+Or copy the APK to your phone and open it there.
+
+## Run from source
+
+Requirements: Flutter and Dart versions allowed by `pubspec.yaml`, plus an
+Android SDK for Android builds.
 
 ```sh
 flutter pub get
 flutter run
 ```
 
-## Included
+Run checks:
 
-- Dashboard with wallet balance, this week's income/expenses, and a spending chart
-- Multiple wallets with opening balances
-- Add, edit, and delete income/expense transactions
-- Custom categories, dates, notes, receipt photos, and UPI QR scanning
-- Weekly income/expense/net summaries, category breakdown, profit/loss status,
-  transaction detail, and closing balance
-- Optional PIN gate when the app is opened
-- Local persistence on the current device
+```sh
+flutter analyze
+flutter test
+```
 
-Receipt images are resized by the picker and limited to 1 MB before saving.
-The PIN is stored as a salted hash in local app preferences; it is not backed by
-hardware security or a dedicated encrypted vault.
+Build an Android APK for a modern 64-bit ARM phone:
 
-## Not configured yet
+```sh
+flutter build apk --release --target-platform android-arm64
+```
 
-This workspace has no Firebase project configuration. Email/Google
-authentication, cloud sync, cloud receipt storage, and remote backup are not
-enabled. Add the project's Firebase app configuration and security rules before
-using real accounts or syncing financial data across devices.
+## Data and privacy
 
-CSV/PDF export, biometric unlock, and automated cloud backup are not included in
-this first local build.
+- Transactions, wallet details, and receipt images are stored locally on this
+  device using app preferences.
+- The optional PIN is stored as a salted SHA-256 hash. It is not a substitute
+  for Android's secure lock screen or encrypted financial storage.
+- Removing the app or clearing its storage can remove locally saved data.
+- This project is **not configured with Firebase**. There is no account
+  sign-in, cloud sync, cloud receipt storage, or remote backup.
+- Review a scanned QR's details before saving or making any payment. KhataFlow
+  records transactions; it does not initiate UPI payments.
+
+## Current limitations
+
+Cloud login and sync, encrypted database storage, automatic backup, CSV/PDF
+export, biometric unlock, and multi-currency support are not implemented yet.
+The Android APK is currently signed with a development signing key and is for
+testing/personal installation, not store distribution.
+
+## Technology
+
+- Flutter / Dart
+- `shared_preferences` for on-device persistence
+- `image_picker` for receipt photos
+- `mobile_scanner` for QR scanning

@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -77,5 +78,38 @@ void main() {
     expect(find.text('TOTAL BALANCE'), findsOneWidget);
     expect(find.text('Income this week'), findsOneWidget);
     expect(find.text('Weekly spending'), findsOneWidget);
+  });
+
+  testWidgets('setting and using a PIN does not crash the app', (tester) async {
+    await tester.pumpWidget(const ExpenseTrackerApp());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Set app PIN'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).last, '1234');
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).last, '1234');
+    await tester.tap(find.text('Save PIN'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('PIN saved. App lock will appear next time you open the app.'),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+
+    await tester.tap(find.text('Lock now'));
+    await tester.pumpAndSettle();
+    expect(find.text('App locked'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField).last, '1234');
+    await tester.tap(find.text('Unlock'));
+    await tester.pumpAndSettle();
+    expect(find.text('Settings'), findsWidgets);
+    expect(tester.takeException(), isNull);
   });
 }
