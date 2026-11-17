@@ -34,6 +34,7 @@ class TrackerStore extends ChangeNotifier {
     'Business',
     'Other',
   ];
+  Map<String, double> categoryBudgets = {};
   String? _pinSalt;
   String? _pinHash;
 
@@ -50,6 +51,10 @@ class TrackerStore extends ChangeNotifier {
       store.transactions = transactionsFromSnapshot(snapshot);
       store.categories = (snapshot['categories'] as List<dynamic>? ?? [])
           .cast<String>();
+      store.categoryBudgets =
+          (snapshot['categoryBudgets'] as Map<dynamic, dynamic>? ?? {}).map(
+            (key, value) => MapEntry(key as String, (value as num).toDouble()),
+          );
       store._pinSalt = snapshot['pinSalt'] as String?;
       store._pinHash = snapshot['pinHash'] as String?;
     }
@@ -83,6 +88,7 @@ class TrackerStore extends ChangeNotifier {
       wallets: wallets,
       transactions: transactions,
       categories: categories,
+      categoryBudgets: categoryBudgets,
       pinSalt: _pinSalt,
       pinHash: _pinHash,
     );
@@ -123,6 +129,20 @@ class TrackerStore extends ChangeNotifier {
       throw StateError('That category already exists.');
     }
     categories = [...categories, category];
+    await _save();
+    notifyListeners();
+  }
+
+  Future<void> setCategoryBudget(String category, double? amount) async {
+    if (amount != null && (!amount.isFinite || amount <= 0)) {
+      throw ArgumentError.value(amount, 'amount', 'Must be greater than zero.');
+    }
+    categoryBudgets = Map<String, double>.from(categoryBudgets);
+    if (amount == null) {
+      categoryBudgets.remove(category);
+    } else {
+      categoryBudgets[category] = amount;
+    }
     await _save();
     notifyListeners();
   }
@@ -401,6 +421,11 @@ class DashboardScreen extends StatelessWidget {
                     transactions: store.transactions,
                     weekStart: weekStart,
                   ),
+                  const SizedBox(height: 16),
+                  _MonthlyBudgetCard(
+                    store: store,
+                    onManage: () => _showBudgets(context, store),
+                  ),
                   const SizedBox(height: 24),
                   Row(
                     children: [
@@ -636,6 +661,118 @@ class _WeekChart extends StatelessWidget {
   }
 }
 
+class _MonthlyBudgetCard extends StatelessWidget {
+  const _MonthlyBudgetCard({required this.store, required this.onManage});
+  final TrackerStore store;
+  final VoidCallback onManage;
+
+  @override
+  Widget build(BuildContext context) {
+    final budgets = store.categoryBudgets.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+    final month = DateTime.now();
+    final spent = budgets.fold<double>(
+      0,
+      (total, entry) =>
+          total +
+          monthlyExpenseForCategory(store.transactions, entry.key, month),
+    );
+    final limit = budgets.fold<double>(
+      0,
+      (total, entry) => total + entry.value,
+    );
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Monthly budgets',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                ),
+              ),
+              TextButton(onPressed: onManage, child: const Text('Manage')),
+            ],
+          ),
+          if (budgets.isEmpty)
+            const Text(
+              'Set category limits to keep this month’s spending on track.',
+              style: TextStyle(color: Colors.black54),
+            )
+          else ...[
+            Text(
+              '${_money(spent)} of ${_money(limit)} used this month',
+              style: const TextStyle(color: Colors.black54),
+            ),
+            const SizedBox(height: 12),
+            ...budgets.take(3).map((entry) {
+              final amount = monthlyExpenseForCategory(
+                store.transactions,
+                entry.key,
+                month,
+              );
+              final exceeded = amount > entry.value;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(child: Text(entry.key)),
+                        Text(
+                          '${_money(amount)} / ${_money(entry.value)}',
+                          style: TextStyle(
+                            color: exceeded
+                                ? const Color(0xFFD65A53)
+                                : Colors.black54,
+                            fontWeight: exceeded ? FontWeight.w700 : null,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 5),
+                    LinearProgressIndicator(
+                      value: (amount / entry.value).clamp(0, 1),
+                      minHeight: 7,
+                      borderRadius: BorderRadius.circular(8),
+                      color: exceeded ? const Color(0xFFD65A53) : _green,
+                      backgroundColor: const Color(0xFFE7EEE9),
+                    ),
+                    if (exceeded)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 3),
+                        child: Text(
+                          'Budget exceeded',
+                          style: TextStyle(
+                            color: Color(0xFFD65A53),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              );
+            }),
+            if (budgets.length > 3)
+              Text(
+                '+ ${budgets.length - 3} more categories',
+                style: const TextStyle(color: Colors.black54, fontSize: 12),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class TransactionsScreen extends StatefulWidget {
   const TransactionsScreen({
     required this.store,
@@ -651,6 +788,13 @@ class TransactionsScreen extends StatefulWidget {
 
 class _TransactionsScreenState extends State<TransactionsScreen> {
   String _filter = 'All';
+  final _search = TextEditingController();
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
@@ -658,11 +802,23 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     builder: (context, _) {
       final items = [...widget.store.transactions]
         ..sort((a, b) => b.date.compareTo(a.date));
-      final visible = items.where((item) {
-        if (_filter == 'Income') return item.isIncome;
-        if (_filter == 'Expense') return !item.isIncome;
-        return true;
-      }).toList();
+      final visible = items
+          .where((item) {
+            if (_filter == 'Income') return item.isIncome;
+            if (_filter == 'Expense') return !item.isIncome;
+            return true;
+          })
+          .where((item) {
+            final query = _search.text.trim().toLowerCase();
+            return query.isEmpty ||
+                item.category.toLowerCase().contains(query) ||
+                item.note.toLowerCase().contains(query) ||
+                _walletName(
+                  widget.store.wallets,
+                  item.walletId,
+                ).toLowerCase().contains(query);
+          })
+          .toList();
       return CustomScrollView(
         slivers: [
           SliverPadding(
@@ -676,6 +832,25 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                 const SizedBox(height: 6),
                 Text('${items.length} entries recorded'),
                 const SizedBox(height: 18),
+                TextField(
+                  controller: _search,
+                  onChanged: (_) => setState(() {}),
+                  decoration: InputDecoration(
+                    hintText: 'Search notes, categories or wallets',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: _search.text.isEmpty
+                        ? null
+                        : IconButton(
+                            tooltip: 'Clear search',
+                            onPressed: () {
+                              _search.clear();
+                              setState(() {});
+                            },
+                            icon: const Icon(Icons.close),
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 SegmentedButton<String>(
                   segments: const [
                     ButtonSegment(value: 'All', label: Text('All')),
@@ -1053,6 +1228,14 @@ class SettingsScreen extends StatelessWidget {
             icon: Icons.phonelink_lock,
             onTap: onLock,
           ),
+        _SettingsCard(
+          title: 'Monthly budgets',
+          subtitle: store.categoryBudgets.isEmpty
+              ? 'Set spending limits by category'
+              : '${store.categoryBudgets.length} category limits set',
+          icon: Icons.savings_outlined,
+          onTap: () => _showBudgets(context, store),
+        ),
         const SizedBox(height: 14),
         const Card(
           color: Colors.white,
@@ -1704,6 +1887,157 @@ class _PinEntryDialogState extends State<_PinEntryDialog> {
     if (RegExp(r'^\d{4,6}$').hasMatch(value)) {
       FocusManager.instance.primaryFocus?.unfocus();
       Navigator.pop(context, value);
+    }
+  }
+}
+
+Future<void> _showBudgets(BuildContext context, TrackerStore store) async {
+  await showDialog<void>(
+    context: context,
+    builder: (context) => AnimatedBuilder(
+      animation: store,
+      builder: (context, _) => AlertDialog(
+        title: const Text('Monthly budgets'),
+        content: SizedBox(
+          width: 380,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Set a monthly expense limit for each category. '
+                  'Budgets reset automatically at the start of each month.',
+                  style: TextStyle(color: Colors.black54),
+                ),
+                const SizedBox(height: 12),
+                ...store.categories.map((category) {
+                  final amount = store.categoryBudgets[category];
+                  final spent = monthlyExpenseForCategory(
+                    store.transactions,
+                    category,
+                    DateTime.now(),
+                  );
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(category),
+                    subtitle: Text(
+                      amount == null
+                          ? 'No limit set'
+                          : '${_money(spent)} spent of ${_money(amount)}',
+                    ),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          tooltip: amount == null
+                              ? 'Set budget'
+                              : 'Edit budget',
+                          onPressed: () =>
+                              _editCategoryBudget(context, store, category),
+                          icon: Icon(
+                            amount == null ? Icons.add : Icons.edit_outlined,
+                          ),
+                        ),
+                        if (amount != null)
+                          IconButton(
+                            tooltip: 'Remove budget',
+                            onPressed: () =>
+                                _removeCategoryBudget(context, store, category),
+                            icon: const Icon(Icons.delete_outline),
+                          ),
+                      ],
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Done'),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+Future<void> _editCategoryBudget(
+  BuildContext context,
+  TrackerStore store,
+  String category,
+) async {
+  final controller = TextEditingController(
+    text: store.categoryBudgets[category] == null
+        ? ''
+        : _number(store.categoryBudgets[category]!),
+  );
+  String? errorText;
+  void saveBudget(BuildContext dialogContext, StateSetter setDialogState) {
+    final value = double.tryParse(controller.text.trim());
+    if (value == null || !value.isFinite || value <= 0) {
+      setDialogState(() => errorText = 'Enter an amount greater than zero');
+      return;
+    }
+    Navigator.pop(dialogContext, value);
+  }
+
+  final amount = await showDialog<double>(
+    context: context,
+    builder: (context) => StatefulBuilder(
+      builder: (context, setDialogState) => AlertDialog(
+        title: Text('$category budget'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(
+            labelText: 'Monthly limit',
+            prefixText: '₹ ',
+            errorText: errorText,
+          ),
+          onSubmitted: (_) => saveBudget(context, setDialogState),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => saveBudget(context, setDialogState),
+            child: const Text('Save limit'),
+          ),
+        ],
+      ),
+    ),
+  );
+  controller.dispose();
+  if (amount == null || !context.mounted) return;
+  try {
+    await store.setCategoryBudget(category, amount);
+  } catch (error) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not save budget: $error')));
+    }
+  }
+}
+
+Future<void> _removeCategoryBudget(
+  BuildContext context,
+  TrackerStore store,
+  String category,
+) async {
+  try {
+    await store.setCategoryBudget(category, null);
+  } catch (error) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not remove budget: $error')),
+      );
     }
   }
 }

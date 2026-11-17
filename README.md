@@ -1,12 +1,12 @@
-# KhataFlow
+# KhataFlow 2.0
 
 <p align="center">
   <img src="assets/brand/khataflow-icon.png" alt="KhataFlow app icon" width="120">
 </p>
 
 <p align="center">
-  <strong>A simple, offline-first way to keep track of your money.</strong><br>
-  Record income and expenses, see your wallet balance, and understand how each week went.
+  <strong>An offline-first way to keep track of your money.</strong><br>
+  Record transactions, plan category budgets, and understand your spending.
 </p>
 
 <p align="center">
@@ -18,7 +18,7 @@
 
 ## Download for Android
 
-**[Download KhataFlow for Android (arm64)](https://github.com/bijaykumarceh-dev/expencehistory/raw/refs/heads/main/releases/KhataFlow-1.1.0-android-arm64.apk?download=1)**
+**[Download KhataFlow 2.0 for Android (arm64)](https://github.com/bijaykumarceh-dev/expencehistory/raw/refs/heads/main/releases/KhataFlow-2.0.0-android-arm64.apk?download=1)**
 
 This APK is built for most modern Android phones (64-bit ARM). Download it to
 your phone, open the APK, and allow installation from this source if Android
@@ -32,6 +32,10 @@ asks. This is a direct-install build, not a Play Store release.
   balances.
 - **Transactions** — add, edit, and delete income and expenses with category,
   wallet, date, time, and an optional note.
+- **Transaction search** — find entries by note, category, or wallet and filter
+  by income or expense.
+- **Monthly budgets** — set category-wise spending limits, track monthly
+  progress, and see an over-budget warning on the dashboard.
 - **Weekly view** — Monday–Sunday income, expenses, net result, profit/loss
   status, category breakdown, and closing balance.
 - **Weekly PDF reports** — share the selected week's balance summary, category
@@ -56,7 +60,7 @@ asks. This is a direct-install build, not a Play Store release.
 With Android Platform Tools installed and USB debugging enabled:
 
 ```sh
-adb install -r releases/KhataFlow-1.1.0-android-arm64.apk
+adb install -r releases/KhataFlow-2.0.0-android-arm64.apk
 ```
 
 Or copy the APK to your phone and open it there.
@@ -99,7 +103,8 @@ flutter build apk --release --target-platform android-arm64
 ## Current limitations
 
 Cloud login and sync, encrypted database storage, automatic backup, CSV export,
-biometric unlock, and multi-currency support are not implemented yet.
+biometric unlock, and multi-currency support are not implemented yet. Budget
+limits and transaction records are stored locally on this device.
 The Android APK is currently signed with a development signing key and is for
 testing/personal installation, not store distribution.
 

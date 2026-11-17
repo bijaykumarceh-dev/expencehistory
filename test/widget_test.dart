@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -48,6 +50,43 @@ void main() {
     expect(weekStatus(10), 'Profit');
     expect(weekStatus(-10), 'Loss');
     expect(weekStatus(0), 'Break-even');
+  });
+
+  test('monthly category spending excludes income and adjacent months', () {
+    final transactions = [
+      MoneyTransaction(
+        id: 'this-month',
+        amount: 80,
+        isIncome: false,
+        category: 'Food',
+        walletId: 'cash',
+        date: DateTime(2026, 11, 5),
+        note: '',
+      ),
+      MoneyTransaction(
+        id: 'income',
+        amount: 500,
+        isIncome: true,
+        category: 'Food',
+        walletId: 'cash',
+        date: DateTime(2026, 11, 6),
+        note: '',
+      ),
+      MoneyTransaction(
+        id: 'next-month',
+        amount: 20,
+        isIncome: false,
+        category: 'Food',
+        walletId: 'cash',
+        date: DateTime(2026, 12, 1),
+        note: '',
+      ),
+    ];
+
+    expect(
+      monthlyExpenseForCategory(transactions, 'Food', DateTime(2026, 11)),
+      80,
+    );
   });
 
   test('weekly PDF report is generated for the selected week', () async {
@@ -102,6 +141,29 @@ void main() {
     expect(restored.balance, -125);
   });
 
+  test(
+    'budgets persist and older saved snapshots load without budgets',
+    () async {
+      final store = await TrackerStore.load();
+      await store.setCategoryBudget('Food', 5000);
+      final restored = await TrackerStore.load();
+      expect(restored.categoryBudgets['Food'], 5000);
+
+      SharedPreferences.setMockInitialValues({
+        'expense_tracker_snapshot_v1': jsonEncode({
+          'wallets': [
+            {'id': 'cash', 'name': 'Cash', 'type': 'Cash', 'openingBalance': 0},
+          ],
+          'transactions': [],
+          'categories': ['Food'],
+        }),
+      });
+      final legacy = await TrackerStore.load();
+      expect(legacy.categoryBudgets, isEmpty);
+      expect(legacy.categories, ['Food']);
+    },
+  );
+
   testWidgets('shows the tracker home after loading local data', (
     tester,
   ) async {
@@ -112,6 +174,49 @@ void main() {
     expect(find.text('TOTAL BALANCE'), findsOneWidget);
     expect(find.text('Income this week'), findsOneWidget);
     expect(find.text('Weekly spending'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Monthly budgets'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Monthly budgets'), findsOneWidget);
+  });
+
+  testWidgets('transaction search matches notes and categories', (
+    tester,
+  ) async {
+    final store = await TrackerStore.load();
+    await store.saveTransaction(
+      MoneyTransaction(
+        id: 'search-match',
+        amount: 100,
+        isIncome: false,
+        category: 'Food',
+        walletId: store.wallets.single.id,
+        date: DateTime.now(),
+        note: 'Groceries',
+      ),
+    );
+    await store.saveTransaction(
+      MoneyTransaction(
+        id: 'search-other',
+        amount: 50,
+        isIncome: false,
+        category: 'Travel',
+        walletId: store.wallets.single.id,
+        date: DateTime.now(),
+        note: 'Bus',
+      ),
+    );
+    await tester.pumpWidget(MaterialApp(home: TrackerHome(store: store)));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Entries'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).first, 'groceries');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Groceries'), findsOneWidget);
+    expect(find.text('Bus'), findsNothing);
   });
 
   testWidgets('setting and using a PIN does not crash the app', (tester) async {
@@ -136,6 +241,14 @@ void main() {
     );
     expect(tester.takeException(), isNull);
 
+    await tester.scrollUntilVisible(
+      find.text('Lock now'),
+      200,
+      scrollable: find.descendant(
+        of: find.byType(ListView).last,
+        matching: find.byType(Scrollable),
+      ),
+    );
     await tester.tap(find.text('Lock now'));
     await tester.pumpAndSettle();
     expect(find.text('App locked'), findsOneWidget);

@@ -101,16 +101,36 @@ double calculateBalance(List<Wallet> wallets, List<MoneyTransaction> items) {
   });
 }
 
+double monthlyExpenseForCategory(
+  List<MoneyTransaction> transactions,
+  String category,
+  DateTime month,
+) {
+  final start = DateTime(month.year, month.month);
+  final end = DateTime(month.year, month.month + 1);
+  return transactions
+      .where(
+        (item) =>
+            !item.isIncome &&
+            item.category == category &&
+            !item.date.isBefore(start) &&
+            item.date.isBefore(end),
+      )
+      .fold<double>(0, (total, item) => total + item.amount);
+}
+
 Map<String, Object?> encodeSnapshot({
   required List<Wallet> wallets,
   required List<MoneyTransaction> transactions,
   required List<String> categories,
+  required Map<String, double> categoryBudgets,
   required String? pinSalt,
   required String? pinHash,
 }) => {
   'wallets': wallets.map((wallet) => wallet.toJson()).toList(),
   'transactions': transactions.map((item) => item.toJson()).toList(),
   'categories': categories,
+  'categoryBudgets': categoryBudgets,
   'pinSalt': pinSalt,
   'pinHash': pinHash,
 };
